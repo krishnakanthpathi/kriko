@@ -94,6 +94,10 @@ sequenceDiagram
    PORT=3000
    GEMINI_API_KEY=your_gemini_key_here
    OPENAI_API_KEY=your_openai_key_here
+
+   # Local LLM (Ollama) Settings
+   OLLAMA_API_URL=http://127.0.0.1:11434
+   OLLAMA_MODEL=gemma2
    
    # Text to speech settings
    USE_KOKORO=false
@@ -102,17 +106,32 @@ sequenceDiagram
 
 ### 3. Run the Server
 * Install dependencies:
-  ```bash
-  npm install
-  ```
+   ```bash
+   npm install
+   ```
 * Run in development mode (using nodemon):
-  ```bash
-  npm run dev
-  ```
+   ```bash
+   npm run dev
+   ```
 * Start the server in production mode:
-  ```bash
-  npm run start
-  ```
+   ```bash
+   npm run start
+   ```
+
+### 4. Running a Local LLM with Ollama (Optional)
+Kriko supports completely local, offline execution using local models running on your machine:
+1. Install [Ollama](https://ollama.com).
+2. Pull your model of choice (e.g. Google's Gemma 2):
+   ```bash
+   ollama pull gemma2
+   ```
+   *Alternative models:*
+   - `gemma:2b` / `gemma:7b` / `gemma:4b` (Gemma variants)
+   - `llama3` (Llama 3)
+   - `mistral` (Mistral 7B)
+   - `qwen2.5` (Qwen 2.5)
+3. Ensure Ollama service is running, and configure `OLLAMA_MODEL` in your `.env` to match the model you pulled.
+4. Select **Ollama (Local)** in the Provider dropdown on the UI dashboard or chat assistant to run local scripts!
 
 ---
 

@@ -178,6 +178,107 @@ class AssistantService {
   }
 
   /**
+   * Retrieves detailed macOS system context including running apps, frontmost app,
+   * active tab URL/title in Chrome/Safari, and system volume.
+   */
+  async getDetailedSystemContext() {
+    let context = '';
+    try {
+      const runningApps = await this.listRunningApps();
+      const currentVol = await this.getVolume();
+      context += `Master Sound Volume: ${currentVol}%\n`;
+      context += `Running Apps: ${runningApps.join(', ')}\n`;
+
+      const frontmostScript = `
+        tell application "System Events"
+          set frontmostApp to name of first process whose frontmost is true
+          return frontmostApp
+        end tell
+      `;
+      let frontmostApp = '';
+      try {
+        frontmostApp = await this.runAppleScript(frontmostScript);
+        context += `Active (Frontmost) Application: "${frontmostApp}"\n`;
+      } catch (e) {}
+
+      if (runningApps.includes('Google Chrome')) {
+        const chromeScript = `
+          tell application "Google Chrome"
+            if (count of windows) > 0 then
+              set activeTab to active tab of window 1
+              return (URL of activeTab) & " - " & (title of activeTab)
+            else
+              return "No windows open"
+            end if
+          end tell
+        `;
+        try {
+          const chromeTab = await this.runAppleScript(chromeScript);
+          context += `Google Chrome Active Tab: ${chromeTab}\n`;
+        } catch (e) {}
+      }
+
+      if (runningApps.includes('Safari')) {
+        const safariScript = `
+          tell application "Safari"
+            if (count of windows) > 0 then
+              set activeTab to current tab of window 1
+              return (URL of activeTab) & " - " & (name of activeTab)
+            else
+              return "No windows open"
+            end if
+          end tell
+        `;
+        try {
+          const safariTab = await this.runAppleScript(safariScript);
+          context += `Safari Active Tab: ${safariTab}\n`;
+        } catch (e) {}
+      }
+
+      if (frontmostApp && frontmostApp !== 'System Events' && frontmostApp !== 'Terminal') {
+        const escapedApp = this._escape(frontmostApp);
+        const a11yScript = `
+          tell application "System Events"
+            tell process "${escapedApp}"
+              if (count of windows) > 0 then
+                set win to window 1
+                set winTitle to name of win
+                set elementList to {}
+                try
+                  set uiEls to UI elements of win
+                  repeat with el in uiEls
+                    try
+                      set elRole to role of el
+                      set elName to name of el
+                      if elName is not missing value and elName is not "" then
+                        copy (elRole & " '" & elName & "'") to end of elementList
+                      end if
+                    end try
+                  end repeat
+                end try
+                set oldDelims to AppleScript's text item delimiters
+                set AppleScript's text item delimiters to ", "
+                set elementString to elementList as string
+                set AppleScript's text item delimiters to oldDelims
+                return "Window '" & winTitle & "' UI elements: " & elementString
+              else
+                return "No open windows"
+              end if
+            end tell
+          end tell
+        `;
+        try {
+          const a11ySummary = await this.runAppleScript(a11yScript);
+          context += `${a11ySummary}\n`;
+        } catch (e) {}
+      }
+    } catch (error) {
+      context += `System state error: ${error.message}\n`;
+    }
+    return context;
+  }
+
+  /**
    * Executes user requests dynamically by writing AppleScripts on the fly
    * utilizing the LLM, with an automatic self-healing/retry loop on script failure.
    */
@@ -189,9 +290,7 @@ class AssistantService {
     // Get current system context to inject into prompt for better script writing
     let systemContext = '';
     try {
-      const runningApps = await this.listRunningApps();
-      const currentVol = await this.getVolume();
-      systemContext = `Current active user apps: ${runningApps.join(', ')}. Current sound volume level: ${currentVol}%.`;
+      systemContext = await this.getDetailedSystemContext();
     } catch (e) {
       systemContext = 'System state retrieval unavailable.';
     }

@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const platformStatus = document.getElementById('platform-status');
   const geminiStatus = document.getElementById('gemini-status');
   const openaiStatus = document.getElementById('openai-status');
+  const ollamaStatus = document.getElementById('ollama-status');
   const consoleLogs = document.getElementById('console-logs-area');
   const viewModeBtn = document.getElementById('view-mode-btn');
   const exitWidgetModeBtn = document.getElementById('exit-widget-mode-btn');
@@ -70,6 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
       updateStatusIndicator(platformStatus, isMac, isMac ? 'macOS Active' : 'Non-macOS (Simulated)');
       updateStatusIndicator(geminiStatus, data.environment.keysConfigured.gemini, 'Gemini');
       updateStatusIndicator(openaiStatus, data.environment.keysConfigured.openai, 'ChatGPT');
+      updateStatusIndicator(ollamaStatus, data.environment.keysConfigured.ollama, 'Ollama (Local)');
       
       logToConsole(`Server environment loaded. Platform: ${data.environment.platform}. macOS: ${isMac}`, 'success');
     } catch (e) {

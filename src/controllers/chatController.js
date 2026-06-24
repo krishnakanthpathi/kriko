@@ -51,7 +51,8 @@ class ChatController {
     res.status(200).json({
       providers: [
         { id: 'gemini', name: 'Gemini 1.5 Flash (Google)', configured: !!config.GEMINI_API_KEY },
-        { id: 'openai', name: 'ChatGPT gpt-4o-mini (OpenAI)', configured: !!config.OPENAI_API_KEY }
+        { id: 'openai', name: 'ChatGPT gpt-4o-mini (OpenAI)', configured: !!config.OPENAI_API_KEY },
+        { id: 'ollama', name: `Local Ollama (${config.OLLAMA_MODEL})`, configured: true }
       ]
     });
   }
