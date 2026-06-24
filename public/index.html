@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kriko - AI macOS Assistant</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app-container" class="dashboard-mode">
+    
+    <!-- Top Nav / Status Bar -->
+    <header class="main-header">
+      <div class="logo">
+        <span class="logo-accent">Kriko</span>
+        <span class="logo-sub">Assistant</span>
+      </div>
+      <div class="status-indicators">
+        <div class="status-item" id="platform-status">
+          <span class="status-dot green"></span>
+          <span class="status-text">macOS Detection</span>
+        </div>
+        <div class="status-item" id="gemini-status">
+          <span class="status-dot gray"></span>
+          <span class="status-text">Gemini</span>
+        </div>
+        <div class="status-item" id="openai-status">
+          <span class="status-dot gray"></span>
+          <span class="status-text">ChatGPT</span>
+        </div>
+        <button id="view-mode-btn" class="action-btn header-toggle-btn">
+          ✨ Siri Widget Mode
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="main-content">
+      
+      <!-- Left Column: Dev Panel & Manual Controls -->
+      <section class="control-panel card">
+        <div class="card-header">
+          <h2>Developer Controls</h2>
+          <p class="subtitle">Direct macOS automation & testing controls</p>
+        </div>
+
+        <div class="control-tabs">
+          <button class="tab-btn active" data-tab="tab-tts">Speech Synthesis</button>
+          <button class="tab-btn" data-tab="tab-actions">System Actions</button>
+          <button class="tab-btn" data-tab="tab-a11y">A11y Tree Analysis</button>
+        </div>
+
+        <div class="tab-content-wrapper">
+          <!-- TTS Tab -->
+          <div class="tab-content active" id="tab-tts">
+            <div class="form-group">
+              <label for="tts-text">Convert Text to Speech</label>
+              <textarea id="tts-text" placeholder="Type what you want the assistant to speak..."></textarea>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label for="tts-voice">Voice</label>
+                <select id="tts-voice">
+                  <!-- Dynamically Loaded -->
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="tts-speed">Speed: <span id="speed-val">1.0</span>x</label>
+                <input type="range" id="tts-speed" min="0.5" max="2.0" step="0.1" value="1.0">
+              </div>
+            </div>
+
+            <button id="generate-speech-btn" class="primary-btn">
+              🔊 Generate & Play Speech
+            </button>
+
+            <div class="audio-player-container hidden" id="tts-player-card">
+              <div class="player-info">
+                <span class="player-title">Generated Audio</span>
+                <span class="player-meta" id="player-method">Apple Native</span>
+              </div>
+              <audio id="main-audio" controls></audio>
+              <a href="#" id="download-audio-btn" class="download-link" download="speech.m4a">⬇️ Download Audio</a>
+            </div>
+          </div>
+
+          <!-- Actions Tab -->
+          <div class="tab-content" id="tab-actions">
+            <!-- Reminders Section -->
+            <div class="section-group">
+              <h3>Create macOS Reminder</h3>
+              <div class="form-group">
+                <input type="text" id="reminder-title" placeholder="Reminder Title (e.g. Call John)">
+              </div>
+              <div class="form-group">
+                <input type="text" id="reminder-body" placeholder="Reminder Body / Notes (optional)">
+              </div>
+              <button id="create-reminder-btn" class="secondary-btn">Add Reminder</button>
+            </div>
+
+            <!-- Volume Section -->
+            <div class="section-group">
+              <h3>System Audio Volume</h3>
+              <div class="volume-slider-container">
+                <span class="vol-icon">🔈</span>
+                <input type="range" id="sys-volume" min="0" max="100" value="50">
+                <span id="volume-val">50%</span>
+              </div>
+            </div>
+
+            <!-- Apps & Speaking -->
+            <div class="section-group">
+              <h3>Mac Control Quick Actions</h3>
+              <div class="btn-grid">
+                <button class="action-btn" onclick="openAppDirect('Safari')">Open Safari</button>
+                <button class="action-btn" onclick="openAppDirect('System Settings')">Open Settings</button>
+                <button class="action-btn" onclick="listRunningAppsDirect()">List Active Apps</button>
+                <button class="action-btn" onclick="triggerSpeakDirect()">Speak Out Loud</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- A11y Tab -->
+          <div class="tab-content" id="tab-a11y">
+            <h3>Accessibility Tree Analysis</h3>
+            <p class="subtitle">Extract application window structures for dynamic agent automation</p>
+            
+            <button id="dump-a11y-btn" class="secondary-btn">
+              🔍 Dump Accessibility Tree
+            </button>
+
+            <div class="code-view-container">
+              <pre><code id="a11y-output" class="json-code">Click 'Dump Accessibility Tree' to retrieve active system UI hierarchy...</code></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Interactive Chat Interface -->
+      <section class="chat-container card">
+        <div class="card-header">
+          <div class="chat-header-title">
+            <h2>Mac AI Assistant</h2>
+            <p class="subtitle">Execute agentic scripts via natural language</p>
+          </div>
+          <div class="model-select-wrapper">
+            <label for="chat-provider">Provider</label>
+            <select id="chat-provider">
+              <option value="gemini">Gemini 1.5 Flash</option>
+              <option value="openai">ChatGPT 4o-mini</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Chat Conversation Area -->
+        <div class="chat-messages" id="chat-messages-area">
+          <div class="chat-bubble assistant">
+            <div class="avatar">🤖</div>
+            <div class="bubble-content">
+              <p>Hello! I am Kriko, your macOS AI assistant. You can command me in natural language to automate your MacBook.</p>
+              <p class="suggestions-title">Try asking me to:</p>
+              <ul class="suggestions">
+                <li onclick="useSuggestion('Create a reminder to update project specs')">"Create a reminder to update project specs"</li>
+                <li onclick="useSuggestion('Set system volume to 40%')">"Set system volume to 40%"</li>
+                <li onclick="useSuggestion('Open Safari')">"Open Safari"</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chat Input Form -->
+        <form id="chat-input-form" class="chat-input-bar">
+          <input type="text" id="chat-input-box" placeholder="Ask Kriko to automate something... (e.g. increase volume)" autocomplete="off">
+          <button type="submit" id="send-chat-btn" class="primary-btn submit-btn">
+            Send
+          </button>
+        </form>
+      </section>
+
+    </main>
+
+    <!-- Debug Log Panel -->
+    <footer class="console-card card">
+      <div class="console-header">
+        <h3>Execution Debug Terminal</h3>
+        <button id="clear-console-btn" class="text-btn">Clear Logs</button>
+      </div>
+      <div class="console-logs" id="console-logs-area">
+        <div class="log-line info">[System] Kriko environment loaded. Waiting for actions...</div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Siri Floating Orb UI -->
+  <div id="siri-floating-widget" class="collapsed">
+    
+    <!-- Hover Label -->
+    <div class="siri-hover-label">Talk to Kriko</div>
+
+    <!-- Siri Orb Core -->
+    <div id="siri-orb" class="idle">
+      <div class="orb-layer layer-1"></div>
+      <div class="orb-layer layer-2"></div>
+      <div class="orb-layer layer-3"></div>
+      <div class="orb-pulse"></div>
+    </div>
+
+    <!-- Compact Floating Chat Overlay -->
+    <div id="siri-overlay-panel" class="hidden glassmorphic">
+      <div class="siri-overlay-header">
+        <div class="siri-title">Siri Experimental Mode</div>
+        <button id="siri-close-btn" class="icon-btn">&times;</button>
+      </div>
+      
+      <div class="siri-chat-area" id="siri-messages-area">
+        <div class="siri-bubble assistant">
+          How can I help you with your Mac?
+        </div>
+      </div>
+
+      <form id="siri-input-form" class="siri-input-bar">
+        <input type="text" id="siri-input-box" placeholder="Speak or type request..." autocomplete="off">
+        <button type="submit" class="siri-send-btn">➔</button>
+      </form>
+      
+      <div class="siri-state-status" id="siri-status-indicator">Idle</div>
+    </div>
+  </div>
+
+  <!-- Floating Mode Exit Button -->
+  <button id="exit-widget-mode-btn" class="primary-btn floating-exit-btn hidden">
+    🖥️ Exit Widget Mode
+  </button>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
