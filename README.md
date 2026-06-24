@@ -20,6 +20,67 @@ Kriko is a modern, modular Express.js assistant server. It connects to the web i
 
 ---
 
+## System Architecture & Flow
+
+### Component Diagram
+```mermaid
+graph TD
+    Client[Web UI / Siri Widget] <-->|HTTP API| Router[Express Router]
+    Router <--> Controller[Chat / Assistant Controllers]
+    Controller <--> Assistant[AssistantService]
+    Controller <--> TTS[ttsService]
+    
+    Assistant <-->|LLM Service| LLM[LlmService]
+    Assistant <-->|Self-Healing Exec| OS[macOS System / osascript]
+    
+    LLM <-->|REST API| Gemini[Google Gemini API]
+    LLM <-->|REST API| OpenAI[OpenAI API]
+    
+    TTS <-->|REST API| Kokoro[Kokoro TTS API]
+    TTS <-->|Exec say| Say[macOS say Command]
+```
+
+### Sequence Flow: Dynamic AppleScript Execution & Self-Healing
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Web Client
+    participant Controller as ChatController
+    participant Service as AssistantService
+    participant LLM as LlmService
+    participant APIs as LLM APIs (Gemini/OpenAI)
+    participant OS as macOS (osascript)
+
+    User->>Controller: POST /api/chat { instruction }
+    Controller->>Service: executeDynamicAction(instruction)
+    activate Service
+    
+    Service->>OS: Get context (volume, running processes)
+    OS-->>Service: System Context
+    
+    rect rgb(40, 44, 52)
+        note right of Service: Execution & Error Recovery Loop (Up to 2 Attempts)
+        Service->>LLM: generateCode(prompt with context)
+        LLM->>APIs: REST API Request
+        APIs-->>LLM: Response text
+        LLM-->>Service: Clean AppleScript (no markdown fences)
+        Service->>OS: Run AppleScript via osascript
+        alt osascript execution fails
+            OS-->>Service: Execution Error
+            note right of Service: Append error details to prompt and retry
+        else osascript execution succeeds
+            OS-->>Service: Execution Output
+        end
+    end
+    
+    Service-->>Controller: Return { script, output, attemptsUsed }
+    deactivate Service
+    Controller-->>User: JSON Response
+```
+
+---
+
+
 ## Setup & Running
 
 ### 1. Prerequisites
