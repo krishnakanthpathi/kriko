@@ -10,4 +10,8 @@ router.get('/running-apps', assistantController.listApps);
 router.post('/speak', assistantController.speak);
 router.get('/accessibility-tree', assistantController.dumpAccessibilityTree);
 
+router.post('/teach/start', assistantController.startTeaching);
+router.post('/teach/stop', assistantController.stopTeaching);
+router.get('/teach/status', assistantController.getTeachStatus);
+
 export default router;

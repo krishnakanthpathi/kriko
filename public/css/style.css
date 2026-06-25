@@ -214,6 +214,19 @@ button {
   background: linear-gradient(135deg, rgba(139, 92, 246, 0.35) 0%, rgba(59, 130, 246, 0.35) 100%);
 }
 
+.teach-btn.recording {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.3) 0%, rgba(220, 38, 38, 0.4) 100%) !important;
+  border-color: rgba(239, 68, 68, 0.8) !important;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+  animation: pulse-red 1.5s infinite;
+}
+
+@keyframes pulse-red {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.03); font-weight: 700; }
+  100% { transform: scale(1); }
+}
+
 .text-btn {
   background: transparent;
   color: var(--text-secondary);

@@ -1,6 +1,8 @@
 import { exec } from 'child_process';
 import config from '../config/config.js';
 import llmService from './llmService.js';
+import demonstrationService from './demonstrationService.js';
+
 
 class AssistantService {
   /**
@@ -248,6 +250,9 @@ class AssistantService {
             context += `Snapshot ID: "${res.data.snapshot_id}"\n`;
             context += `Tree: ${JSON.stringify(res.data.tree, null, 2)}\n`;
             snapshotLoaded = true;
+            
+            // Set active snapshot in demonstrationService for lookup
+            demonstrationService.setActiveSnapshot(res.data.snapshot_id, res.data.tree);
           }
         } catch (e) {
           console.warn(`[Detailed System Context] agent-desktop snapshot failed for ${escapedApp}:`, e.message);
@@ -355,9 +360,29 @@ class AssistantService {
       systemContext = 'System state retrieval unavailable.';
     }
 
+    // Check if we have a recorded demonstration matching this request
+    const matchingDemo = demonstrationService.getMatchingDemonstration(instruction);
+
     while (attempts > 0) {
       try {
-        let prompt = `System Context:\n${systemContext}\nGoal: Write a bash shell script (mixing terminal, osascript, and agent-desktop commands) to do: "${instruction}"`;
+        let prompt = '';
+        if (matchingDemo) {
+          console.log(`[Assistant Service] Guided execution: matching demonstration found for: "${matchingDemo.intent}"`);
+          prompt = `System Context:\n${systemContext}
+
+You have a recorded user demonstration for this intent. Use the exact flow and element queries from this guide to target elements with high accuracy in your generated bash script:
+Recorded Steps:
+${matchingDemo.steps.map((step, index) => {
+  if (step.action === 'launch') {
+    return `${index + 1}. Launch Application: "${step.appName}"`;
+  }
+  return `${index + 1}. Action: "${step.action}" on element matching role "${step.elementQuery.role}" and name "${step.elementQuery.name}". (Target Value if typing: "${step.targetValue || ''}")`;
+}).join('\n')}
+
+Goal: Write a bash shell script (mixing terminal, osascript, and agent-desktop commands) to do: "${instruction}"`;
+        } else {
+          prompt = `System Context:\n${systemContext}\nGoal: Write a bash shell script (mixing terminal, osascript, and agent-desktop commands) to do: "${instruction}"`;
+        }
 
         if (currentError) {
           prompt += `\n\nYour previous bash script failed.
@@ -376,6 +401,11 @@ Please fix the error and provide a corrected, working bash script. Make sure to 
 
         // Execute the script
         const output = await this.runShellScript(script);
+
+        // If recording a demonstration and execution was successful, record this script action
+        if (demonstrationService.isRecording()) {
+          demonstrationService.recordScriptAction(instruction, script);
+        }
 
         return {
           success: true,

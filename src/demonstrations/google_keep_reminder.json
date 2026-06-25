@@ -1,0 +1,43 @@
+{
+  "intent": "google_keep_reminder",
+  "created_at": "2026-06-25T05:48:02.256Z",
+  "steps": [
+    {
+      "action": "launch",
+      "appName": "Google Chrome",
+      "timestamp": "2026-06-25T05:47:42.902Z"
+    },
+    {
+      "action": "click",
+      "elementQuery": {
+        "role": "AXButton",
+        "name": "🔴 Recording... (Stop)"
+      },
+      "timestamp": "2026-06-25T05:47:43.416Z"
+    },
+    {
+      "action": "click",
+      "elementQuery": {
+        "role": "AXMenuItem",
+        "name": "Next week Mon, 8:00 AM"
+      },
+      "timestamp": "2026-06-25T05:47:53.701Z"
+    },
+    {
+      "action": "click",
+      "elementQuery": {
+        "role": "AXMenuItem",
+        "name": "Tomorrow 8:00 AM"
+      },
+      "timestamp": "2026-06-25T05:47:56.102Z"
+    },
+    {
+      "action": "click",
+      "elementQuery": {
+        "role": "AXButton",
+        "name": "🔴 Recording... (Stop)"
+      },
+      "timestamp": "2026-06-25T05:48:02.079Z"
+    }
+  ]
+}

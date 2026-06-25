@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { exec } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,6 +19,13 @@ class DemonstrationService {
     this._currentIntent = '';
     this._steps = [];
     this._activeSnapshot = null; // Stores the latest snapshot data { snapshot_id, tree }
+    this._trackerInterval = null;
+    this._lastState = {
+      appName: '',
+      elRole: '',
+      elName: '',
+      elVal: ''
+    };
   }
 
   isRecording() {
@@ -33,11 +41,30 @@ class DemonstrationService {
     this._currentIntent = intentName.trim().toLowerCase().replace(/\s+/g, '_');
     this._steps = [];
     this._activeSnapshot = null;
+    this._lastState = { appName: '', elRole: '', elName: '', elVal: '' };
+
     console.log(`[Demonstration Service] Started recording demonstration for intent: "${this._currentIntent}"`);
+    
+    // Start background tracking of physical user actions
+    this._startBackgroundTracking();
   }
 
   stopRecording() {
     if (!this._isRecording) return null;
+
+    // Stop background tracking
+    this._stopBackgroundTracking();
+
+    // Check if there is a final unsaved typing state
+    if (this._lastState && (this._lastState.elRole.includes('Text') || this._lastState.elRole.includes('TextField')) && this._lastState.elVal) {
+      console.log(`[AX Tracker] Flushing final typing state: "${this._lastState.elVal}"`);
+      this._steps.push({
+        action: 'type',
+        targetValue: this._lastState.elVal,
+        elementQuery: { role: this._lastState.elRole, name: this._lastState.elName },
+        timestamp: new Date().toISOString()
+      });
+    }
 
     const savedIntent = this._currentIntent;
     const savedSteps = [...this._steps];
@@ -63,6 +90,149 @@ class DemonstrationService {
 
   getActiveSnapshot() {
     return this._activeSnapshot;
+  }
+
+  /**
+   * Background tracking methods to poll user focus changes on macOS
+   */
+  _startBackgroundTracking() {
+    if (this._trackerInterval) clearInterval(this._trackerInterval);
+    
+    this._trackerInterval = setInterval(async () => {
+      try {
+        const state = await this._fetchAXState();
+        if (!state) return;
+
+        // 1. Detect application change
+        if (state.appName && state.appName !== this._lastState.appName) {
+          console.log(`[AX Tracker] Application change detected: "${state.appName}"`);
+          if (state.appName !== 'System Events' && state.appName !== 'Terminal' && state.appName !== 'Antigravity IDE') {
+            this._steps.push({
+              action: 'launch',
+              appName: state.appName,
+              timestamp: new Date().toISOString()
+            });
+            // Try to capture initial element layout map of the newly focused app
+            await this._captureAppSnapshot(state.appName);
+          }
+        }
+
+        // 2. Detect element changes
+        if (state.elRole && (state.elRole !== this._lastState.elRole || state.elName !== this._lastState.elName)) {
+          // If user moved away from a text element that had content, record it as a typing event
+          const isPrevText = this._lastState.elRole.includes('Text') || this._lastState.elRole.includes('TextField');
+          if (isPrevText && this._lastState.elVal) {
+            console.log(`[AX Tracker] Recorded text entry: "${this._lastState.elVal}" inside element "${this._lastState.elName}"`);
+            this._steps.push({
+              action: 'type',
+              targetValue: this._lastState.elVal,
+              elementQuery: { role: this._lastState.elRole, name: this._lastState.elName },
+              timestamp: new Date().toISOString()
+            });
+          }
+
+          // If new focused element is a button/menu item/checkbox/disclosure, treat it as a click action
+          const isClickable = state.elRole.includes('Button') || 
+                            state.elRole.includes('Menu') || 
+                            state.elRole.includes('Check') || 
+                            state.elRole.includes('Toggle') ||
+                            state.elRole.includes('Link');
+                            
+          if (isClickable && state.elName && state.elName !== 'missing value') {
+            console.log(`[AX Tracker] Recorded click/activation: ${state.elRole} "${state.elName}"`);
+            this._steps.push({
+              action: 'click',
+              elementQuery: { role: state.elRole, name: state.elName },
+              timestamp: new Date().toISOString()
+            });
+          }
+        }
+
+        // Update active values
+        this._lastState = state;
+      } catch (error) {
+        // Silent error
+      }
+    }, 1200);
+  }
+
+  _stopBackgroundTracking() {
+    if (this._trackerInterval) {
+      clearInterval(this._trackerInterval);
+      this._trackerInterval = null;
+    }
+  }
+
+  /**
+   * Run AppleScript to retrieve the frontmost focused UI component attributes
+   */
+  _fetchAXState() {
+    return new Promise((resolve) => {
+      const script = `
+        tell application "System Events"
+          try
+            set frontApp to name of first process whose frontmost is true
+            tell process frontApp
+              try
+                set focusedEl to value of attribute "AXFocusedUIElement"
+                set elRole to role of focusedEl as string
+                set elName to name of focusedEl as string
+                try
+                  set elVal to value of focusedEl as string
+                on error
+                  set elVal to ""
+                end try
+                return frontApp & "|" & elRole & "|" & elName & "|" & elVal
+              on error
+                return frontApp & "|none|none|"
+              end try
+            end tell
+          on error
+            return "none|none|none|"
+          end try
+        end tell
+      `;
+
+      exec(`osascript -e '${script.replace(/'/g, "'\\''")}'`, (err, stdout, stderr) => {
+        if (err || !stdout) {
+          resolve(null);
+          return;
+        }
+        const parts = stdout.trim().split('|');
+        if (parts.length >= 4) {
+          resolve({
+            appName: parts[0] === 'none' ? '' : parts[0],
+            elRole: parts[1] === 'none' ? '' : parts[1],
+            elName: parts[2] === 'none' ? '' : parts[2],
+            elVal: parts[3] || ''
+          });
+        } else {
+          resolve(null);
+        }
+      });
+    });
+  }
+
+  /**
+   * Take background snapshot of the app layout
+   */
+  _captureAppSnapshot(appName) {
+    return new Promise((resolve) => {
+      exec(`npx agent-desktop snapshot --app "${appName}" --skeleton -i --compact`, (err, stdout) => {
+        if (!err && stdout) {
+          try {
+            const res = JSON.parse(stdout);
+            if (res.ok && res.data) {
+              this._activeSnapshot = {
+                snapshotId: res.data.snapshot_id,
+                tree: res.data.tree
+              };
+            }
+          } catch (e) {}
+        }
+        resolve();
+      });
+    });
   }
 
   /**

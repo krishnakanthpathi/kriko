@@ -1,4 +1,6 @@
 import assistantService from '../services/assistantService.js';
+import demonstrationService from '../services/demonstrationService.js';
+
 
 class AssistantController {
   async createReminder(req, res, next) {
@@ -79,6 +81,44 @@ class AssistantController {
     try {
       const tree = await assistantService.dumpAccessibilityTree();
       res.status(200).json({ success: true, tree });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  startTeaching(req, res, next) {
+    try {
+      const { intent } = req.body;
+      if (!intent) {
+        return res.status(400).json({ success: false, error: 'Intent name is required to start teaching.' });
+      }
+      demonstrationService.startRecording(intent);
+      res.status(200).json({ success: true, message: `Recording started for intent: ${intent}` });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  stopTeaching(req, res, next) {
+    try {
+      const result = demonstrationService.stopRecording();
+      if (result) {
+        res.status(200).json({ success: true, message: `Teaching complete. Stored intent: ${result.intent}`, data: result });
+      } else {
+        res.status(200).json({ success: true, message: 'Teaching stopped. No steps were recorded.' });
+      }
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  getTeachStatus(req, res, next) {
+    try {
+      res.status(200).json({
+        success: true,
+        isRecording: demonstrationService.isRecording(),
+        currentIntent: demonstrationService.getCurrentIntent()
+      });
     } catch (error) {
       next(error);
     }

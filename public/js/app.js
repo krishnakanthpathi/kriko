@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const geminiStatus = document.getElementById('gemini-status');
   const openaiStatus = document.getElementById('openai-status');
   const ollamaStatus = document.getElementById('ollama-status');
+  const teachModeBtn = document.getElementById('teach-mode-btn');
   const consoleLogs = document.getElementById('console-logs-area');
   const viewModeBtn = document.getElementById('view-mode-btn');
   const exitWidgetModeBtn = document.getElementById('exit-widget-mode-btn');
@@ -107,6 +108,18 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) {
       console.warn('Failed to retrieve system volume.', e);
     }
+
+    // 4. Sync Teach Mode status
+    try {
+      const res = await fetch('/api/assistant/teach/status');
+      const data = await res.json();
+      if (data.success && data.isRecording) {
+        isRecordingDemo = true;
+        teachModeBtn.textContent = '🔴 Recording... (Stop)';
+        teachModeBtn.classList.add('recording');
+        logToConsole(`Restored active recording demonstration for "${data.currentIntent}".`, 'warning');
+      }
+    } catch (e) {}
   }
 
   // ==============================================
@@ -144,6 +157,51 @@ document.addEventListener('DOMContentLoaded', () => {
     exitWidgetModeBtn.classList.add('hidden');
     siriOverlayPanel.classList.add('hidden');
     logToConsole('Exited widget overlay mode.', 'info');
+  });
+
+  // Teach Mode toggle
+  let isRecordingDemo = false;
+
+  teachModeBtn.addEventListener('click', async () => {
+    if (!isRecordingDemo) {
+      const intentName = prompt('Enter a name for the task you are teaching (e.g., google_keep_reminder):');
+      if (!intentName) return;
+
+      try {
+        const res = await fetch('/api/assistant/teach/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ intent: intentName })
+        });
+        const data = await res.json();
+        if (data.success) {
+          isRecordingDemo = true;
+          teachModeBtn.textContent = '🔴 Recording... (Stop)';
+          teachModeBtn.classList.add('recording');
+          logToConsole(`Teach Mode Active: Recording demonstration for "${intentName}".`, 'warning');
+        } else {
+          alert(`Failed to start teaching: ${data.error}`);
+        }
+      } catch (e) {
+        logToConsole(`Failed to connect to backend teach API: ${e.message}`, 'error');
+      }
+    } else {
+      try {
+        const res = await fetch('/api/assistant/teach/stop', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          isRecordingDemo = false;
+          teachModeBtn.textContent = '🎓 Teach Mode';
+          teachModeBtn.classList.remove('recording');
+          logToConsole(`Teach Mode Complete: Saved demonstration flow to "${data.data?.intent}".`, 'success');
+          alert(`Successfully saved task demonstration guide for "${data.data?.intent}"! Next time you ask this task, the assistant will follow your guide.`);
+        } else {
+          alert(`Failed to stop teaching: ${data.error}`);
+        }
+      } catch (e) {
+        logToConsole(`Failed to stop teaching: ${e.message}`, 'error');
+      }
+    }
   });
 
   // Helper: Append logs to mock terminal
