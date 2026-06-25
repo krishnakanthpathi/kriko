@@ -6,6 +6,8 @@ import config from './config/config.js';
 import { requestLogger } from './middleware/loggingMiddleware.js';
 import { errorHandler, notFoundHandler } from './middleware/errorMiddleware.js';
 import routes from './routes/index.js';
+import clipboardObserver from './services/clipboardObserver.js';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -38,6 +40,9 @@ const server = app.listen(config.PORT, () => {
   console.log('\x1b[32m%s\x1b[0m', ` Platform: ${process.platform} (macOS: ${config.IS_MACOS})`);
   console.log('\x1b[32m%s\x1b[0m', ` USE_KOKORO (TTS): ${config.USE_KOKORO}`);
   console.log('\x1b[32m%s\x1b[0m', `==================================================`);
+
+  // Start background clipboard voice observer
+  clipboardObserver.start();
 });
 
 // Graceful shutdown handling

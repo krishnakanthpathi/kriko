@@ -1,0 +1,46 @@
+{
+  "intent": "whatapp_messesing",
+  "created_at": "2026-06-25T06:23:08.216Z",
+  "steps": [
+    {
+      "action": "launch",
+      "appName": "Google Chrome",
+      "timestamp": "2026-06-25T06:22:41.663Z"
+    },
+    {
+      "action": "click",
+      "elementQuery": {
+        "role": "AXButton",
+        "name": "🔴 Recording... (Stop)"
+      },
+      "timestamp": "2026-06-25T06:22:42.217Z"
+    },
+    {
+      "action": "launch",
+      "appName": "WhatsApp",
+      "timestamp": "2026-06-25T06:22:46.383Z"
+    },
+    {
+      "action": "launch",
+      "appName": "Google Chrome",
+      "timestamp": "2026-06-25T06:23:06.894Z"
+    },
+    {
+      "action": "type",
+      "targetValue": "missing value",
+      "elementQuery": {
+        "role": "AXTextArea",
+        "name": "missing value"
+      },
+      "timestamp": "2026-06-25T06:23:07.273Z"
+    },
+    {
+      "action": "click",
+      "elementQuery": {
+        "role": "AXButton",
+        "name": "🔴 Recording... (Stop)"
+      },
+      "timestamp": "2026-06-25T06:23:07.273Z"
+    }
+  ]
+}
