@@ -13,7 +13,7 @@ class ChatController {
         return res.status(400).json({ success: false, error: 'Instruction parameter is required.' });
       }
 
-      const activeProvider = provider || 'gemini';
+      const activeProvider = provider || 'ollama';
       
       console.log(`[Chat Controller] Received dynamic instruction: "${instruction}" using provider: ${activeProvider}`);
       

@@ -28,7 +28,7 @@ class AssistantService {
    */
   async runAppleScript(script) {
     console.log('\x1b[36m%s\x1b[0m', `[AppleScript Execute]\n${script}\n`);
-    
+
     if (!config.IS_MACOS) {
       console.log('\x1b[33m%s\x1b[0m', '[Simulation] Running AppleScript simulation on non-macOS platform.');
       return 'Simulation: Success';
@@ -40,10 +40,10 @@ class AssistantService {
       return new Promise((resolve, reject) => {
         let stdout = '';
         let stderr = '';
-        
+
         process.stdout.on('data', (data) => { stdout += data; });
         process.stderr.on('data', (data) => { stderr += data; });
-        
+
         process.on('close', (code) => {
           if (code === 0) {
             resolve(stdout.trim());
@@ -53,7 +53,7 @@ class AssistantService {
             reject(err);
           }
         });
-        
+
         process.stdin.write(script);
         process.stdin.end();
       });
@@ -199,7 +199,7 @@ class AssistantService {
       try {
         frontmostApp = await this.runAppleScript(frontmostScript);
         context += `Active (Frontmost) Application: "${frontmostApp}"\n`;
-      } catch (e) {}
+      } catch (e) { }
 
       if (runningApps.includes('Google Chrome')) {
         const chromeScript = `
@@ -215,7 +215,7 @@ class AssistantService {
         try {
           const chromeTab = await this.runAppleScript(chromeScript);
           context += `Google Chrome Active Tab: ${chromeTab}\n`;
-        } catch (e) {}
+        } catch (e) { }
       }
 
       if (runningApps.includes('Safari')) {
@@ -232,45 +232,63 @@ class AssistantService {
         try {
           const safariTab = await this.runAppleScript(safariScript);
           context += `Safari Active Tab: ${safariTab}\n`;
-        } catch (e) {}
+        } catch (e) { }
       }
 
       if (frontmostApp && frontmostApp !== 'System Events' && frontmostApp !== 'Terminal') {
         const escapedApp = this._escape(frontmostApp);
-        const a11yScript = `
-          tell application "System Events"
-            tell process "${escapedApp}"
-              if (count of windows) > 0 then
-                set win to window 1
-                set winTitle to name of win
-                set elementList to {}
-                try
-                  set uiEls to UI elements of win
-                  repeat with el in uiEls
-                    try
-                      set elRole to role of el
-                      set elName to name of el
-                      if elName is not missing value and elName is not "" then
-                        copy (elRole & " '" & elName & "'") to end of elementList
-                      end if
-                    end try
-                  end repeat
-                end try
-                set oldDelims to AppleScript's text item delimiters
-                set AppleScript's text item delimiters to ", "
-                set elementString to elementList as string
-                set AppleScript's text item delimiters to oldDelims
-                return "Window '" & winTitle & "' UI elements: " & elementString
-              else
-                return "No open windows"
-              end if
-            end tell
-          end tell
-        `;
+        let snapshotLoaded = false;
+        
         try {
-          const a11ySummary = await this.runAppleScript(a11yScript);
-          context += `${a11ySummary}\n`;
-        } catch (e) {}
+          console.log(`[Detailed System Context] Capturing agent-desktop snapshot for app: ${escapedApp}`);
+          const { stdout } = await this._execPromise(`npx agent-desktop snapshot --app "${escapedApp}" --skeleton -i --compact`);
+          const res = JSON.parse(stdout);
+          if (res.ok && res.data) {
+            context += `Active App UI Accessibility Tree Snapshot (Ref IDs map to elements in this window):\n`;
+            context += `Snapshot ID: "${res.data.snapshot_id}"\n`;
+            context += `Tree: ${JSON.stringify(res.data.tree, null, 2)}\n`;
+            snapshotLoaded = true;
+          }
+        } catch (e) {
+          console.warn(`[Detailed System Context] agent-desktop snapshot failed for ${escapedApp}:`, e.message);
+        }
+
+        if (!snapshotLoaded) {
+          const a11yScript = `
+            tell application "System Events"
+              tell process "${escapedApp}"
+                if (count of windows) > 0 then
+                  set win to window 1
+                  set winTitle to name of win
+                  set elementList to {}
+                  try
+                    set uiEls to UI elements of win
+                    repeat with el in uiEls
+                      try
+                        set elRole to role of el
+                        set elName to name of el
+                        if elName is not missing value and elName is not "" then
+                          copy (elRole & " '" & elName & "'") to end of elementList
+                        end if
+                      end try
+                    end repeat
+                  end try
+                  set oldDelims to AppleScript's text item delimiters
+                  set AppleScript's text item delimiters to ", "
+                  set elementString to elementList as string
+                  set AppleScript's text item delimiters to oldDelims
+                  return "Window '" & winTitle & "' UI elements: " & elementString
+                else
+                  return "No open windows"
+                end if
+              end tell
+            end tell
+          `;
+          try {
+            const a11ySummary = await this.runAppleScript(a11yScript);
+            context += `${a11ySummary}\n`;
+          } catch (e) { }
+        }
       }
     } catch (error) {
       context += `System state error: ${error.message}\n`;
@@ -279,7 +297,49 @@ class AssistantService {
   }
 
   /**
-   * Executes user requests dynamically by writing AppleScripts on the fly
+   * Run bash shell script.
+   * Supports simulation mode on non-macOS systems.
+   * @param {string} script Bash script content
+   * @returns {Promise<string>} Output of the execution
+   */
+  async runShellScript(script) {
+    console.log('\x1b[36m%s\x1b[0m', `[Shell Execute]\n${script}\n`);
+    
+    if (!config.IS_MACOS) {
+      console.log('\x1b[33m%s\x1b[0m', '[Simulation] Running Shell script simulation.');
+      return 'Simulation: Success';
+    }
+
+    try {
+      return new Promise((resolve, reject) => {
+        const process = exec('/bin/bash');
+        let stdout = '';
+        let stderr = '';
+        
+        process.stdout.on('data', (data) => { stdout += data; });
+        process.stderr.on('data', (data) => { stderr += data; });
+        
+        process.on('close', (code) => {
+          if (code === 0) {
+            resolve(stdout.trim());
+          } else {
+            const err = new Error(stderr.trim() || `Shell script exited with code ${code}`);
+            err.code = code;
+            reject(err);
+          }
+        });
+        
+        process.stdin.write(script);
+        process.stdin.end();
+      });
+    } catch (error) {
+      console.error('[Shell Script Error]', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Executes user requests dynamically by writing bash shell scripts on the fly
    * utilizing the LLM, with an automatic self-healing/retry loop on script failure.
    */
   async executeDynamicAction({ instruction, provider = 'gemini' }) {
@@ -297,26 +357,26 @@ class AssistantService {
 
     while (attempts > 0) {
       try {
-        let prompt = `System Context: ${systemContext}\nGoal: Write an AppleScript to do the following: "${instruction}"`;
-        
+        let prompt = `System Context:\n${systemContext}\nGoal: Write a bash shell script (mixing terminal, osascript, and agent-desktop commands) to do: "${instruction}"`;
+
         if (currentError) {
-          prompt += `\n\nYour previous AppleScript failed.
+          prompt += `\n\nYour previous bash script failed.
 Failed Script:
-\`\`\`applescript
+\`\`\`bash
 ${script}
 \`\`\`
 Error returned:
 "${currentError.message}"
 
-Please fix the error and provide a corrected, working AppleScript. Make sure to escape strings correctly and follow syntax rules.`;
+Please fix the error and provide a corrected, working bash script. Make sure to escape strings correctly and follow shell syntax.`;
         }
 
         // Generate the code using LLM Service
-        script = await llmService.generateCode(prompt, 'applescript', provider);
-        
+        script = await llmService.generateCode(prompt, 'bash', provider);
+
         // Execute the script
-        const output = await this.runAppleScript(script);
-        
+        const output = await this.runShellScript(script);
+
         return {
           success: true,
           script,
